@@ -1,0 +1,21 @@
+modes:
+map exploration
+
+
+features:
+add color
+add gates to new maps
+projectiles
+more enemies
+new skills
+items
+
+friend, sprite, forest nymph, daemon, familiar
+
+
+
+technical challenges:
+full scrolling map
+enemies that dont get stuck when chasing
+
+still to figure out.... combat!

@@ -1,0 +1,12 @@
+rivers/water
+lakes/water
+forest/trees
+jungle/trees
+plains/grass
+dessert/sand
+mountain/rock
+sea/water
+
+http://mewo2.com/notes/terrain/
+
+http://www-cs-students.stanford.edu/~amitp/game-programming/polygon-map-generation/
