@@ -62,7 +62,9 @@ class Grass(Biome):
                     self.pos_x = randint(2, game.eastern_border - 1)
                     self.pos_y = randint(2, game.southern_border - 1)
             else:
-                self.pos_x, self.pos_y = sample(game.map, 1)[0]
+                # print(game.map)
+                # self.pos_x, self.pos_y = sample(game.map, 1)[0]
+                self.pos_x, self.pos_y = sample(game.map.keys(), 1)[0]
                 while (self.pos_x, self.pos_y) in game.map:
                     nudge = randint(1, 4)
                     if nudge == 1 and self.pos_x < (game.eastern_border - 1):
@@ -74,8 +76,34 @@ class Grass(Biome):
                     elif nudge == 4 and self.pos_y > (2):
                         self.pos_y -= 1
 
-            # time.sleep(.003)
+            # import time; time.sleep(.003)
             self.print_char()
 
             self.pos_x = self.pos_y = self.pos_z = None
 
+
+class Border(Biome):
+    def __init__(self, game):
+        Biome.__init__(self, 'Border', game)
+        self.color = ''
+        self.rep = 'x'
+        self.pos_z = 10
+        # South Border
+        for num in range(game.eastern_border + 1):
+            self.pos_x, self.pos_y = num, game.southern_border
+            self.print_char()
+
+        # North Border
+        for num in range(game.eastern_border):
+            self.pos_x, self.pos_y = num, 1
+            self.print_char()
+
+        # East Border
+        for num in range(game.southern_border):
+            self.pos_x, self.pos_y = game.eastern_border, num
+            self.print_char()
+
+        # West Boarder
+        for num in range(game.southern_border - 2):
+            self.pos_x, self.pos_y = 1, num + 2
+            self.print_char()

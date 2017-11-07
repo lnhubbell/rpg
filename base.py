@@ -5,7 +5,7 @@ from colorama import init
 
 
 # Internal
-from actors import Player, Rat, SlingShot, Wood, River, Grass
+from actors import Player, Rat, SlingShot, Wood, River, Grass, Border
 
 
 init(autoreset=True)
@@ -21,6 +21,7 @@ class TextPrint:
     rep = ''
     color = ''
 
+
 class Game(object):
     ENCOUNTERS = []
 
@@ -29,17 +30,16 @@ class Game(object):
         self.get_size()
         self.clear()
         self.map = {}
-        self.biomes = (Grass(self), River(self))
+        self.biomes = (Grass(self), River(self), Border(self))
         self.player = Player(self)
         self.items = []
         self.items.append(SlingShot(self))
         self.items.append(Wood(self))
-        self.rat_count = 3
+        self.rat_count = 0
         self.rats = []
         for rat in range(self.rat_count):
             self.rats.append(Rat(self))
         self.time = 0
-        self.print_map_border()
         self.info_pane = InfoPane(self)
         self.dialogue_history = []
         self.projectiles = []
@@ -137,46 +137,6 @@ class Game(object):
 
     def clear(self):
         os.system('cls' if os.name == 'nt' else 'clear')
-
-    def print_map_border(self):
-        class Border:
-            rep = 'x'
-            color = ''
-        # South Border
-        for num in range(self.eastern_border + 1):
-            self.set_map_value(num, self.southern_border, self.border_height, Border)
-        # North Border
-        for num in range(self.eastern_border):
-            self.set_map_value(num, 1, self.border_height, Border)
-        # East Border
-        for num in range(self.southern_border):
-            self.set_map_value(self.eastern_border, num, self.border_height, Border)
-        # West Boarder
-        for num in range(self.southern_border - 2):
-            self.set_map_value(1, num + 2, self.border_height, Border)
-
-
-        # self.print_gateway()
-
-    def print_gateway(self):
-        gateway_length = 5
-        gateway_edge = randint(0, 3)
-        if gateway_edge in (0, 1):
-            gateway_pos = randint(2, self.southern_border - 8)
-            if gateway_edge == 1:
-                for num in range(gateway_length):
-                    self.set_map_value(1, gateway_pos + num, self.border_height, None)
-            else:
-                for num in range(gateway_length):
-                    self.set_map_value(self.eastern_border, gateway_pos + num, self.border_height, None)
-        else:
-            gateway_pos = randint(2, self.eastern_border - 8)
-            if gateway_edge == 2:
-                for num in range(gateway_length):
-                    self.set_map_value(gateway_pos + num, 1, self.border_height, None)
-            else:
-                for num in range(gateway_length):
-                    self.set_map_value(gateway_pos + num, self.southern_border, self.border_height, None)
 
     def run(self):
         self.base_print_dialogue(story_line_intro)

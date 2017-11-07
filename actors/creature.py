@@ -4,7 +4,7 @@ import time
 from random import sample, random
 from colorama import Fore
 from .item import FlintandSteel, Item
-from .biome import Biome
+from .biome import Biome, Border
 from utils import all_names, getch
 
 
@@ -102,12 +102,14 @@ class Creature(object):
             # if it's not in the map, its not an obstacle
             return False
 
-        if isinstance(map_value, Biome):
-            # then its not an obstacle
-            return False
-
         # otherwise it is
-        return True
+        return map_value
+
+    def collide(self, target):
+        if isinstance(target, Border):
+            self.game.base_print_dialogue('The end of the world.')
+        else:
+            self.game.base_print_dialogue('A collision has occurred.')
 
     def move_char(self, direction):
         self.obstacle['d'] = (
@@ -123,22 +125,22 @@ class Creature(object):
             self.check_obstacle(self.pos_x, (self.pos_y + 1), self.pos_z)
         )
 
-        if direction == 'd' and not self.obstacle['d']:
-            self.set_prev()
-            self.pos_x += 1
-        elif direction == 'a' and not self.obstacle['a']:
-            self.set_prev()
-            self.pos_x -= 1
-        elif direction == 'w' and not self.obstacle['w']:
-            self.set_prev()
-            self.pos_y -= 1
-        elif direction == 's' and not self.obstacle['s']:
-            self.set_prev()
-            self.pos_y += 1
-        else:
-            return False
+        direction_map = {
+            'd': ['pos_x', 1],
+            'a': ['pos_x', -1],
+            'w': ['pos_y', -1],
+            's': ['pos_y', 1]
+        }
 
-        return True
+        if not self.obstacle[direction]:
+            self.set_prev()
+            pos = direction_map[direction][0]
+            val = direction_map[direction][1]
+            setattr(self, pos, getattr(self, pos) + val)
+            return True
+        else:
+            self.collide(self.obstacle[direction])
+            return False
 
     def full_move(self):
         if self.choose_and_move():
