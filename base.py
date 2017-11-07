@@ -35,7 +35,7 @@ class Game(object):
         self.items = []
         self.items.append(SlingShot(self))
         self.items.append(Wood(self))
-        self.rat_count = 0
+        self.rat_count = 4
         self.rats = []
         for rat in range(self.rat_count):
             self.rats.append(Rat(self))
@@ -141,12 +141,25 @@ class Game(object):
     def run(self):
         self.base_print_dialogue(story_line_intro)
         while True:
+            from time import sleep
+            sleep(3)
             self.time += 1
             self.info_pane.refresh()
-            self.player.get_player_input()
+
             self.player.inventory.show()
-            self.player.full_move()
-            self.player.action()
+
+            from threading import Thread
+
+            def input_thread():
+                if self.player.player_input is None:
+                    self.player.get_player_input()
+                    if self.player.player_input:
+                        self.player.full_move()
+                        self.player.action()
+                        self.player.player_input = None
+            thread = Thread(target=input_thread)
+            thread.start()
+
             for rat in self.rats:
                 rat.be()
             for proj in self.projectiles:
