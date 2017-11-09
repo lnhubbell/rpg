@@ -82,28 +82,28 @@ class Grass(Biome):
             self.pos_x = self.pos_y = self.pos_z = None
 
 
-class Border(Biome):
-    def __init__(self, game):
-        Biome.__init__(self, 'Border', game)
-        self.color = ''
-        self.rep = 'x'
-        self.pos_z = 10
-        # South Border
-        for num in range(game.eastern_border + 1):
-            self.pos_x, self.pos_y = num, game.southern_border
-            self.print_char()
+# class Border(Biome):
+#     def __init__(self, game):
+#         Biome.__init__(self, 'Border', game)
+#         self.color = ''
+#         self.rep = 'x'
+#         self.pos_z = 10
+#         # South Border
+#         for num in range(game.eastern_border + 1):
+#             self.pos_x, self.pos_y = num, game.southern_border
+#             self.print_char()
 
-        # North Border
-        for num in range(game.eastern_border):
-            self.pos_x, self.pos_y = num, 1
-            self.print_char()
+#         # North Border
+#         for num in range(game.eastern_border):
+#             self.pos_x, self.pos_y = num, 1
+#             self.print_char()
 
-        # East Border
-        for num in range(game.southern_border):
-            self.pos_x, self.pos_y = game.eastern_border, num
-            self.print_char()
+#         # East Border
+#         for num in range(game.southern_border):
+#             self.pos_x, self.pos_y = game.eastern_border, num
+#             self.print_char()
 
-        # West Boarder
-        for num in range(game.southern_border - 2):
-            self.pos_x, self.pos_y = 1, num + 2
-            self.print_char()
+#         # West Boarder
+#         for num in range(game.southern_border - 2):
+#             self.pos_x, self.pos_y = 1, num + 2
+#             self.print_char()

@@ -1,11 +1,13 @@
 # External
 import os
+import sys
 from random import randint
 from colorama import init
-
+from threading import Thread
+from time import sleep
 
 # Internal
-from actors import Player, Rat, SlingShot, Wood, River, Grass, Border
+from actors import Player, Rat, SlingShot, Wood, River, Grass, SentientVine
 
 
 init(autoreset=True)
@@ -26,23 +28,41 @@ class Game(object):
     ENCOUNTERS = []
 
     def __init__(self):
+        self.time_unit = .05  # in seconds
         self.border_height = 10
         self.get_size()
         self.clear()
-        self.map = {}
-        self.biomes = (Grass(self), River(self), Border(self))
+        self.border_print()
+        self.maps = {}
+        self.get_map(0, 0)
         self.player = Player(self)
         self.items = []
         self.items.append(SlingShot(self))
         self.items.append(Wood(self))
+        pos_x, pos_y = self.rand_x_y_pos()
+        self.vines = []
         self.rat_count = 4
         self.rats = []
-        for rat in range(self.rat_count):
-            self.rats.append(Rat(self))
+        # for rat in range(self.rat_count):
+        #     self.rats.append(Rat(self))
         self.time = 0
         self.info_pane = InfoPane(self)
         self.dialogue_history = []
         self.projectiles = []
+
+    def get_map(self, x, y):
+        self.map_clear()
+
+        if (x, y) in self.maps:
+            self.map = self.maps[(x, y)]
+            self.map_print()
+        else:
+            self.map = {}
+            self.maps[(x, y)] = self.map
+            self.biomes = (Grass(self), River(self))
+
+        self.current_map = (x, y)
+
 
     def temp_print(self, x, y, text, map_value=None):
         print("\033[%s;%sH%s" % (y, x, text))
@@ -138,32 +158,61 @@ class Game(object):
     def clear(self):
         os.system('cls' if os.name == 'nt' else 'clear')
 
+    def map_clear(self):
+        for x in range(2, self.eastern_border):
+            for y in range(2, self.southern_border):
+                self.base_print(x, y, ' ')
+
+    def map_print(self):
+        for x, y in self.map:
+            self.print_intersection(x, y)
+
     def run(self):
         self.base_print_dialogue(story_line_intro)
+
+        def input_thread():
+            # first, set player_input to None to indicate that we're waiting
+            # for the input. This flag is used to determine if we need to
+            # start a new thread or not
+            self.player.player_input = None
+            # this line will just wait patiently until it gets player_input
+            self.player.get_player_input()
+
         while True:
-            from time import sleep
-            sleep(3)
-            self.time += 1
-            self.info_pane.refresh()
+            # If we're not already waiting for input, start waiting,
+            # we will set waiting_for_input to false inside of get_player_input
+            # after we get the input
+            if not self.player.waiting_for_input:
+                self.player.waiting_for_input = True
+                thread = Thread(target=input_thread)
+                thread.start()
 
-            self.player.inventory.show()
+            # Move time foward one unit
+            # sleep(self.time_unit)
+            self.time += self.time_unit
 
-            from threading import Thread
-
-            def input_thread():
-                if self.player.player_input is None:
-                    self.player.get_player_input()
-                    if self.player.player_input:
-                        self.player.full_move()
-                        self.player.action()
-                        self.player.player_input = None
-            thread = Thread(target=input_thread)
-            thread.start()
-
+            # update all the automatic features of the game
             for rat in self.rats:
                 rat.be()
             for proj in self.projectiles:
                 proj.be()
+            for vine in self.vines:
+                vine.be()
+
+            self.info_pane.refresh()
+            self.player.inventory.show()
+
+            # if there is player input, proccess it here
+            if self.player.player_input:
+                if self.player.player_input == 'q':
+                    os.system("stty echo")
+                    self.clear()
+                    thread.join()
+                    sys.exit()
+                self.player.full_move()
+                self.player.action()
+                # We have processed the input, now dump it
+                self.player.player_input = None
 
     def rand_x_y_pos(self):
         pos_x = randint(2, self.eastern_border - 1)
@@ -175,18 +224,52 @@ class Game(object):
         return pos_x, pos_y
 
     def base_print_dialogue(self, dialogue):
-        time_stamped_dialogue = '%s: %s' % (self.time, dialogue)
-        for x in range(self.eastern_border):
-            for y in range(self.southern_border + 1, self.rows + 1):
-                self.set_map_value(x, y, 5, None)
 
-        self.dialogue_history.append(time_stamped_dialogue)
+        time_stamped_dialogue = '%.2f: %s' % (self.time, dialogue)
+        if self.dialogue_history:
+            previous_dialogue = self.dialogue_history[-1].split(': ')[1]
+        else:
+            previous_dialogue = ''
 
-        for ind, line in enumerate(self.dialogue_history[-5:]):
-            dialogue_line = TextPrint()
-            dialogue_line.rep = line
-            self.set_map_value(
-                1, self.southern_border + (1 + ind), 5, dialogue_line)
+        if not dialogue == previous_dialogue:
+            for x in range(self.eastern_border):
+                for y in range(self.southern_border + 1, self.rows + 1):
+                    self.set_map_value(x, y, 5, None)
+
+            self.dialogue_history.append(time_stamped_dialogue)
+
+            for ind, line in enumerate(self.dialogue_history[-5:]):
+                dialogue_line = TextPrint()
+                dialogue_line.rep = line
+                self.set_map_value(
+                    1, self.southern_border + (1 + ind), 5, dialogue_line)
+
+    def border_iter(self, rep):
+        # South Border
+        for num in range(self.eastern_border + 1):
+            x, y = num, self.southern_border
+            self.base_print(x, y, rep)
+
+        # North Border
+        for num in range(self.eastern_border):
+            x, y = num, 1
+            self.base_print(x, y, rep)
+
+        # East Border
+        for num in range(self.southern_border):
+            x, y = self.eastern_border, num
+            self.base_print(x, y, rep)
+
+        # West Boarder
+        for num in range(self.southern_border - 2):
+            x, y = 1, num + 2
+            self.base_print(x, y, rep)
+
+    def border_print(self):
+        self.border_iter('x')
+
+    def border_clear(self):
+        self.border_iter(' ')
 
 
 class InfoPane(object):
@@ -194,40 +277,63 @@ class InfoPane(object):
         self.game = game
         self.western_border = self.game.eastern_border + 2
         self.pos_z = 5
-
-    def refresh(self):
         base = 1
-        self.show('Time: %s' % self.game.time, base)
+        self.show('Time: %.2f' % self.game.time, base)
         self.show('--- Player ---', base + 1)
         self.show('Name: %s' % self.game.player.name, base + 2)
         self.show('Health: %s' % self.game.player.health, base + 3)
         self.show('Gold: %s' % self.game.player.gold, base + 4)
         self.show('Exp.: %s' % self.game.player.experience, base + 5)
-        self.show_items(base)
+        self.show('Loc.: (%s,%s)' % (self.game.player.pos_x, self.game.player.pos_y), base + 6)
+        self.show('Map: %s,%s' % self.game.current_map, base + 7)
 
-        self.show_chars(base)
+    def refresh(self):
+        base = 1
+        self.show('%.2f' % self.game.time, base, 6)
+        self.show('%s' % self.game.player.name, base + 2, 6)
+        self.show('%s' % self.game.player.health, base + 3, 8)
+        self.show('%s' % self.game.player.gold, base + 4, 6)
+        self.show('%s' % self.game.player.experience, base + 5, 6)
+        self.show('%s,%s)' % (self.game.player.pos_x, self.game.player.pos_y), base + 6, 7)
+        self.show('%s,%s' % self.game.current_map, base + 7, 5)
+        self.show_items(base, 8)
+        self.show_chars(base, 18)
 
-    def show(self, text, display_height):
+    def show(self, text, display_height, x_offset=0):
         text_print = TextPrint()
         text_print.rep = text
-
+        # clear existing text
         for col in range(self.western_border, self.game.columns):
-            self.game.set_map_value(col, display_height, self.pos_z, None)
+            self.game.set_map_value(
+                col + x_offset, display_height, self.pos_z, None)
+        # honestly not positive what's happening here
         self.game.map.get(
             (self.western_border, display_height), {}).pop(self.pos_z, None)
+        # write new text
         self.game.set_map_value(
-            self.western_border, display_height, self.pos_z, text_print)
+            self.western_border + x_offset,
+            display_height, self.pos_z, text_print)
 
-    def show_items(self, base):
+    def show_items(self, base, off_set):
         if self.game.player.items:
-            base += 6
+            base += off_set
             self.show('Items:', base)
             for ind, item in enumerate(self.game.player.items):
                 ind += 1
                 self.show("  -%s" % item.name, base + ind)
 
-    def show_chars(self, base):
-        base += 15
+
+    def show_spells(self, base, off_set):
+        if self.game.player.spells:
+            base += off_set
+            self.show('Spells:', base)
+            for ind, spell in enumerate(self.game.player.spells):
+                ind += 1
+                self.show("  -%s" % spell.name, base + ind)
+
+
+    def show_chars(self, base, off_set):
+        base += off_set
         self.show('--- OTHER CHARS ---', base)
         for ind, rat in enumerate(self.game.rats):
             ind += 1

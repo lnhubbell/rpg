@@ -1,3 +1,3 @@
-from .creature import Player, Rat
+from .creature import Player, Rat, SentientVine
 from .item import SlingShot, Wood
-from .biome import River, Grass, Border
+from .biome import River, Grass

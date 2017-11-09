@@ -4,7 +4,8 @@ import time
 from random import sample, random
 from colorama import Fore
 from .item import FlintandSteel, Item
-from .biome import Biome, Border
+from .spell import RingOfFire
+from .biome import Biome
 from utils import all_names, getch
 
 
@@ -13,10 +14,25 @@ class Creature(object):
 
     def __init__(self, game):
         self.obstacle = {
-            'd': False,
-            's': False,
             'w': False,
+            'wd': False,
+            'd': False,
+            'ds': False,
+            's': False,
+            'sa': False,
             'a': False,
+            'aw': False,
+        }
+        self.direction_map = {
+            # direction: [x,y],
+            'w': [0, -1],
+            'wd': [1, -1],
+            'd': [1, 0],
+            'ds': [1, 1],
+            's': [0, 1],
+            'sa': [-1, 1],
+            'a': [-1, 0],
+            'aw': [-1, -1],
         }
         self.color = ''
         self.rep = 'w'
@@ -27,10 +43,12 @@ class Creature(object):
         self.prev_pos_x = None
         self.prev_pos_y = None
         self.prev_pos_z = None
+        self.prev_direction = None
         self.health = 10
         self.name = sample(all_names, 1)[0]
         self.under_attack = False
         self.dead = False
+
 
     def print_char(self):
         self.game.set_map_value(self.pos_x, self.pos_y, self.pos_z, None)
@@ -66,6 +84,7 @@ class Creature(object):
         self.prev_pos_x = self.pos_x
         self.prev_pos_y = self.pos_y
         self.prev_pos_z = self.pos_z
+        self.prev_direction = self.direction
 
     def choose_move(self):
         # random
@@ -105,41 +124,54 @@ class Creature(object):
         # otherwise it is
         return map_value
 
-    def collide(self, target):
-        if isinstance(target, Border):
-            self.game.base_print_dialogue('The end of the world.')
-        else:
-            self.game.base_print_dialogue('A collision has occurred.')
+    def collide_dialogue(self, target):
+        pass
 
     def move_char(self, direction):
-        self.obstacle['d'] = (
-            self.check_obstacle((self.pos_x + 1), self.pos_y, self.pos_z)
-        )
-        self.obstacle['a'] = (
-            self.check_obstacle((self.pos_x - 1), self.pos_y, self.pos_z)
-        )
-        self.obstacle['w'] = (
-            self.check_obstacle(self.pos_x, (self.pos_y - 1), self.pos_z)
-        )
-        self.obstacle['s'] = (
-            self.check_obstacle(self.pos_x, (self.pos_y + 1), self.pos_z)
+        # putting this here because it is used in set_prev,
+        # probably not the best place
+        self.direction = direction
+
+        x_shift, y_shift = self.direction_map[self.direction]
+        new_x = self.pos_x + x_shift
+        new_y = self.pos_y + y_shift
+
+        # TODO: cleanup here
+        # Eastern Border
+        if new_x == self.game.eastern_border:
+            new_x = 2
+            map_x, map_y = self.game.current_map
+            self.game.get_map(map_x + 1, map_y)
+
+        # Western Border
+        elif new_x == 1:
+            new_x = self.game.eastern_border - 1
+            map_x, map_y = self.game.current_map
+            self.game.get_map(map_x - 1, map_y)
+
+        # Southern Border
+        elif new_y == self.game.southern_border:
+            new_y = 2
+            map_x, map_y = self.game.current_map
+            self.game.get_map(map_x, map_y + 1)
+
+        # Northern Border
+        elif new_y == 1:
+            new_y = self.game.southern_border - 1
+            map_x, map_y = self.game.current_map
+            self.game.get_map(map_x, map_y - 1)
+
+        self.obstacle[self.direction] = (
+            self.check_obstacle(new_x, new_y, self.pos_z)
         )
 
-        direction_map = {
-            'd': ['pos_x', 1],
-            'a': ['pos_x', -1],
-            'w': ['pos_y', -1],
-            's': ['pos_y', 1]
-        }
-
-        if not self.obstacle[direction]:
+        if not self.obstacle[self.direction]:
             self.set_prev()
-            pos = direction_map[direction][0]
-            val = direction_map[direction][1]
-            setattr(self, pos, getattr(self, pos) + val)
+            self.pos_x = new_x
+            self.pos_y = new_y
             return True
         else:
-            self.collide(self.obstacle[direction])
+            self.collide_dialogue(self.obstacle[self.direction])
             return False
 
     def full_move(self):
@@ -271,6 +303,69 @@ class Projectile(Creature):
                     self.die()
 
 
+class SentientVine(Projectile):
+    def be(self):
+        self.health -= 1
+        if self.health <= 0:
+            self.die()
+
+        vine_movement = {
+            'w': ['w', 'wd', 'aw'],
+            'wd': ['wd', 'w', 'd'],
+            'd': ['wd', 'd', 'ds'],
+            'ds': ['ds', 'd', 's'],
+            's': ['s', 'ds', 'sa'],
+            'sa': ['sa', 's', 'a'],
+            'a': ['a', 'sa', 'aw'],
+            'aw': ['aw', 'a', 'w'],
+            None: ['a', 'w', 'd', 's']
+        }
+
+        if self.dead:
+            return
+
+
+        move_set = vine_movement[self.prev_direction]
+
+        direction = sample(move_set, 1)[0]
+
+        x_shift, y_shift = self.direction_map[direction]
+
+        self._range -= 1
+        if self._range <= 0:
+            self.die()
+            return
+        target = self.game.map.get(
+            (self.pos_x + x_shift, self.pos_y + y_shift)
+        )
+        if hasattr(target, 'health'):
+            target.under_attack = True
+            rando = random()
+            if rando < self.accuracy and target.alive():
+                target.health -= self.dmg
+                target.show_hit()
+                self.game.base_print_dialogue('%s hit!' % self.attack_name)
+                self.die()
+            elif rando >= self.accuracy:
+                self.game.base_print_dialogue('Oi! You missed!')
+        else:
+            if self.move_char(direction):
+                from random import randint
+                # self.clear_prev()
+                self.print_char()
+                # if randint(1, 4) == 3:
+                if True:
+                    self.game.vines.append(
+                        SentientVine(
+                            self.game, 'o', 'w', 10, 1, 1, 'attack_name',
+                            self.pos_x, self.pos_y + 1
+                        )
+                    )
+            else:
+                self.die()
+
+
+
 class Player(Creature):
     VALID_REACTIONS = {'1', '2', '3', '4'}
 
@@ -281,6 +376,7 @@ class Player(Creature):
         self.rep = 'A'
         self.print_char()
         self.player_input = None
+        self.waiting_for_input = None
         self.health = 100
         self.stamina = 100
         self.gold = 50
@@ -291,34 +387,51 @@ class Player(Creature):
             '2': self.block,
             '3': self.dodge,
             'm': self.pickup,
+            # 'v': self.create_vine
         }
 
         self.items = [FlintandSteel(game)]
+        self.spells = [RingOfFire(game)]
+
+    def action(self):
+        if self.player_input in self.actions:
+            self.actions[self.player_input]()
 
     @property
     def actions(self):
         current_actions = self._actions.copy()
         for item in self.items:
             current_actions.update(item.actions)
+        for spell in self.spells:
+            current_actions.update(spell.actions)
         return current_actions
-
-    def get_player_input(self):
-        self.player_input = getch()
-        if self.player_input == 'q':
-            os.system("stty echo")
-            self.game.clear()
-            sys.exit()
 
     def choose_and_move(self):
         if self.player_input in self.VALID_MOVES:
             return self.move_char(self.player_input)
 
-    def action(self):
-        if self.player_input in self.actions:
-            self.actions[self.player_input]()
+    def collide_dialogue(self, target):
+        # if isinstance(target, Border):
+        #     self.game.base_print_dialogue('The end of the world.')
+        # else:
+        self.game.base_print_dialogue(
+            'A collision has occurred with %s.' % target)
 
-    def punch(self):
-        self.attack(1, 2, .8, 'punch')
+    def create_vine(self):
+        self.game.vines.append(SentientVine(
+            self.game, 'o', 'w', 10, 1, 1, 'attack_name', self.pos_x,
+            self.pos_y + 1)
+        )
+
+    def block(self):
+        pass
+
+    def dodge(self):
+        pass
+
+    def get_player_input(self):
+        self.player_input = getch()
+        self.waiting_for_input = False
 
     def pickup(self):
         """Pickup all things next to player."""
@@ -334,11 +447,8 @@ class Player(Creature):
                 self.game.set_map_value(item.pos_x, item.pos_y, item.pos_z, None)
                 self.game.base_print_dialogue('Picked up %s.' % item.name)
 
-    def block(self):
-        pass
-
-    def dodge(self):
-        pass
+    def punch(self):
+        self.attack(1, 2, .8, 'punch')
 
 
 class Inventory(object):
