@@ -59,7 +59,46 @@ class Game(object):
         else:
             self.map = {}
             self.maps[(x, y)] = self.map
-            self.biomes = (Grass(self), River(self))
+
+            east_map = self.maps.get((x+1, y))
+            west_map = self.maps.get((x-1, y))
+            south_map = self.maps.get((x, y+1))
+            north_map = self.maps.get((x, y-1))
+
+            rivers = []
+
+            if east_map:
+                # there is a map to the east of this new one
+                for row in range(2, self.southern_border):
+                    z_dict = east_map.get((2, row))
+                    if z_dict:
+                        item = self.top_map_value(z_dict)
+                        if isinstance(item, River):
+                            print('************')
+                            print('%s' % row)
+                            riv_x = self.eastern_border - 1
+                            riv_y = row
+                            riv_starting_border = 'e'
+                            riv_direction = item.direction
+                            rivers.append(River(self, riv_x, riv_y, riv_starting_border, riv_direction))
+                            break
+
+            if west_map:
+                # there is a map to the west of this new one
+                pass
+
+            if south_map:
+                # there is a map to the south of this new one
+                pass
+
+            if north_map:
+                # there is a map to the north of this new one
+                pass
+
+            if not rivers:
+                rivers = [River(self)]
+
+            self.biomes = (Grass(self), *rivers)
 
         self.current_map = (x, y)
 
@@ -199,9 +238,9 @@ class Game(object):
             for vine in self.vines:
                 vine.be()
 
+
             self.info_pane.refresh()
             self.player.inventory.show()
-
             # if there is player input, proccess it here
             if self.player.player_input:
                 if self.player.player_input == 'q':
@@ -286,6 +325,8 @@ class InfoPane(object):
         self.show('Exp.: %s' % self.game.player.experience, base + 5)
         self.show('Loc.: (%s,%s)' % (self.game.player.pos_x, self.game.player.pos_y), base + 6)
         self.show('Map: %s,%s' % self.game.current_map, base + 7)
+        self.show_items(base, 8)
+        self.show_chars(base, 18)
 
     def refresh(self):
         base = 1
@@ -303,12 +344,15 @@ class InfoPane(object):
         text_print = TextPrint()
         text_print.rep = text
         # clear existing text
-        for col in range(self.western_border, self.game.columns):
+        for col in range(self.western_border, self.game.columns - x_offset):
             self.game.set_map_value(
                 col + x_offset, display_height, self.pos_z, None)
+
         # honestly not positive what's happening here
         self.game.map.get(
-            (self.western_border, display_height), {}).pop(self.pos_z, None)
+            (self.western_border, display_height), {}
+        ).pop(self.pos_z, None)
+
         # write new text
         self.game.set_map_value(
             self.western_border + x_offset,
