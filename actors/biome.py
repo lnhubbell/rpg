@@ -7,15 +7,18 @@ class Biome(object):
         self.color = ''
         self.rep = 'i'
         self.name = name
-        self.pos_x, self.pos_y = self.game.rand_x_y_pos()
+        # self.pos_x, self.pos_y = self.game.rand_x_y_pos()
         self.pos_z = 0
 
-    def print_char(self):
-        self.game.set_map_value(self.pos_x, self.pos_y, self.pos_z, self)
+    def set_map_value(self, target_map):
+        if isinstance(self, River):
+            if not self.direction:
+                raise ValueError('Where is your directoin? %s' % self)
+        self.game.set_map_value(self.pos_x, self.pos_y, self.pos_z, self, target_map)
 
 
 class River(Biome):
-    def __init__(self, game, x=None, y=None, starting_border=None, direction=None):
+    def __init__(self, game, target_map, x=None, y=None, starting_border=None, direction=None):
         Biome.__init__(self, 'River', game)
         self.color = Fore.CYAN
         self.rep = '0'
@@ -67,6 +70,7 @@ class River(Biome):
                 'If <direction> is None all values must be None.'))
 
         self.direction = direction
+        assert self.direction is not None
         self.rep = direction
 
         while (
@@ -76,37 +80,36 @@ class River(Biome):
             self.pos_y > 1
         ):
 
-            if starting_border not in ['n', 'e', 's', 'w']:
-                raise ValueError('starting_border is not of correct type')
-            self.print_char()
+            self.set_map_value(target_map)
 
             # traveling due West
-            if starting_border == 'e':
+            if self.direction == '<':
                 self.pos_x -= 1
                 self.pos_y += randint(-1, 1)
 
             # traveling due north
-            elif starting_border == 's':
+            elif self.direction == '^':
                 self.pos_y -= 1
                 self.pos_x += randint(-1, 1)
 
             # traveling due south
-            elif starting_border == 'n':
+            elif self.direction == 'v':
                 self.pos_y += 1
                 self.pos_x += randint(-1, 1)
 
             # traveling due east
-            elif starting_border == 'w':
+            elif self.direction == '>':
                 self.pos_x += 1
                 self.pos_y += randint(-1, 1)
 
 
 class Grass(Biome):
-    def __init__(self, game):
+    def __init__(self, game, target_map):
         Biome.__init__(self, 'Grass', game)
         self.color = Fore.GREEN
         self.rep = '#'
         self.pos_z = 1
+        self.target_map = target_map
 
         total_area = game.southern_border * game.eastern_border
         grass_count = randint(int(total_area*.02), int(total_area*.1))
@@ -118,14 +121,14 @@ class Grass(Biome):
                 self.pos_y = None
                 # we want to generate this once, then keep trying until we get
                 # fresh values
-                while (self.pos_x, self.pos_y) in game.map or self.pos_x is None:
+                while (self.pos_x, self.pos_y) in target_map or self.pos_x is None:
                     self.pos_x = randint(2, game.eastern_border - 1)
                     self.pos_y = randint(2, game.southern_border - 1)
             else:
-                # print(game.map)
-                # self.pos_x, self.pos_y = sample(game.map, 1)[0]
+                # print(target_map)
+                # self.pos_x, self.pos_y = sample(target_map, 1)[0]
                 self.pos_x, self.pos_y = sample(self.all_grass_locs(), 1)[0]
-                while (self.pos_x, self.pos_y) in game.map:
+                while (self.pos_x, self.pos_y) in target_map:
                     nudge = randint(1, 4)
                     if nudge == 1 and self.pos_x < (game.eastern_border - 1):
                         self.pos_x += 1
@@ -137,13 +140,13 @@ class Grass(Biome):
                         self.pos_y -= 1
 
             # import time; time.sleep(.003)
-            self.print_char()
+            self.set_map_value(target_map)
 
             self.pos_x = self.pos_y = self.pos_z = None
 
     def all_grass_locs(self):
         locs = []
-        for loc, z_dict in self.game.map.items():
+        for loc, z_dict in self.target_map.items():
             for item in z_dict.values():
                 if isinstance(item, Grass):
                     locs.append(loc)

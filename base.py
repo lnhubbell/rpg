@@ -50,58 +50,109 @@ class Game(object):
         self.dialogue_history = []
         self.projectiles = []
 
+    def create_map(self, x, y):
+        new_map = {}
+        self.maps[(x, y)] = new_map
+        east_map = self.maps.get((x+1, y))
+        west_map = self.maps.get((x-1, y))
+        south_map = self.maps.get((x, y+1))
+        north_map = self.maps.get((x, y-1))
+
+        rivers = []
+
+        # TODO: get these four chunks into one
+        if east_map:
+            # there is a map to the east of this new one
+            for row in range(2, self.southern_border):
+                z_dict = east_map.get((2, row))
+                if z_dict:
+                    item = self.top_map_value(z_dict)
+                    if isinstance(item, River):
+                        riv_x = self.eastern_border - 1
+                        riv_y = row
+                        riv_starting_border = 'e'
+                        riv_direction = item.direction
+                        rivers.append(
+                            River(
+                                self, new_map, riv_x, riv_y,
+                                riv_starting_border, riv_direction
+                            )
+                        )
+                        break
+
+        if west_map:
+            # there is a map to the west of this new one
+            for row in range(2, self.southern_border):
+                z_dict = west_map.get((self.eastern_border - 1, row))
+                if z_dict:
+                    item = self.top_map_value(z_dict)
+                    if isinstance(item, River):
+                        riv_x = 2
+                        riv_y = row
+                        riv_starting_border = 'w'
+                        riv_direction = item.direction
+                        rivers.append(
+                            River(
+                                self, new_map, riv_x, riv_y,
+                                riv_starting_border, riv_direction
+                            )
+                        )
+                        break
+
+        if south_map:
+            # there is a map to the south of this new one
+            for col in range(2, self.eastern_border):
+                z_dict = south_map.get((col, 2))
+                if z_dict:
+                    item = self.top_map_value(z_dict)
+                    if isinstance(item, River):
+                        riv_x = col
+                        riv_y = self.southern_border - 1
+                        riv_starting_border = 's'
+                        riv_direction = item.direction
+                        rivers.append(
+                            River(
+                                self, new_map, riv_x, riv_y,
+                                riv_starting_border, riv_direction
+                            )
+                        )
+                        break
+
+        if north_map:
+            # there is a map to the north of this new one
+            for col in range(2, self.eastern_border):
+                z_dict = north_map.get((col, self.southern_border - 1))
+                if z_dict:
+                    item = self.top_map_value(z_dict)
+                    if isinstance(item, River):
+                        riv_x = col
+                        riv_y = 2
+                        riv_starting_border = 'n'
+                        riv_direction = item.direction
+                        rivers.append(
+                            River(
+                                self, new_map, riv_x, riv_y,
+                                riv_starting_border, riv_direction
+                            )
+                        )
+                        break
+
+        if not rivers:
+            rivers = [River(self, new_map)]
+
+        Grass(self, new_map)
+        return new_map
+
     def get_map(self, x, y):
         self.map_clear()
 
         if (x, y) in self.maps:
             self.map = self.maps[(x, y)]
-            self.map_print()
         else:
-            self.map = {}
-            self.maps[(x, y)] = self.map
+            self.map = self.create_map(x, y)
 
-            east_map = self.maps.get((x+1, y))
-            west_map = self.maps.get((x-1, y))
-            south_map = self.maps.get((x, y+1))
-            north_map = self.maps.get((x, y-1))
-
-            rivers = []
-
-            if east_map:
-                # there is a map to the east of this new one
-                for row in range(2, self.southern_border):
-                    z_dict = east_map.get((2, row))
-                    if z_dict:
-                        item = self.top_map_value(z_dict)
-                        if isinstance(item, River):
-                            print('************')
-                            print('%s' % row)
-                            riv_x = self.eastern_border - 1
-                            riv_y = row
-                            riv_starting_border = 'e'
-                            riv_direction = item.direction
-                            rivers.append(River(self, riv_x, riv_y, riv_starting_border, riv_direction))
-                            break
-
-            if west_map:
-                # there is a map to the west of this new one
-                pass
-
-            if south_map:
-                # there is a map to the south of this new one
-                pass
-
-            if north_map:
-                # there is a map to the north of this new one
-                pass
-
-            if not rivers:
-                rivers = [River(self)]
-
-            self.biomes = (Grass(self), *rivers)
-
+        self.map_print()
         self.current_map = (x, y)
-
 
     def temp_print(self, x, y, text, map_value=None):
         print("\033[%s;%sH%s" % (y, x, text))
@@ -134,21 +185,25 @@ class Game(object):
     def top_map_value(self, z_dict):
         return sorted(z_dict.items(), key=lambda x: -x[0])[0][1]
 
-    def print_intersection(self, x, y):
-        try:
-            z_dict = self.map[(x, y)]
-        except KeyError:
-            return False
-        if not z_dict:
-            return False
+    def print_intersection(self, x, y, target_map=None):
+        """prints the topmost object at a given x,y coordinate, if nothing is
+        at that coordinate it prints an empty space to ensure the space is
+        properly cleared."""
 
-        map_value = self.top_map_value(z_dict)
-        text = map_value.color + map_value.rep
+        this_map = target_map or self.map
+        z_dict = this_map.get((x, y), {})
+
+        if z_dict:
+            map_value = self.top_map_value(z_dict)
+            text = map_value.color + map_value.rep
+        else:
+            text = ' '
+
         # finally do the actual printing
         self.base_print(x, y, text)
         return True
 
-    def set_map_value(self, x, y, z, map_value):
+    def set_map_value(self, x, y, z, map_value, target_map):
         if not isinstance(x, int):
             raise ValueError('x coordinate must be an integer.')
         if not isinstance(y, int):
@@ -158,31 +213,31 @@ class Game(object):
 
         if map_value:
             # If there is already something at this x,y intersection handle it
-            if (x, y) in self.map:
-                z_dict = self.map[(x, y)]
+            if (x, y) in target_map:
+                z_dict = target_map[(x, y)]
                 if z not in z_dict:
                     z_dict[z] = map_value
                 elif z in z_dict:
                     raise EnvironmentError('Uncontrolled spacial collision.')
                 # After adding the new z value, grab the top map_value in the
                 # pile
-                top_map_value = self.top_map_value(z_dict)
+                # top_map_value = self.top_map_value(z_dict)
 
             # otherwise create a new z_dict
             else:
-                self.map[(x, y)] = {z: map_value}
-                top_map_value = map_value
+                target_map[(x, y)] = {z: map_value}
+                # top_map_value = map_value
 
             # use the map_value representation to find out what to print
-            text = top_map_value.color + top_map_value.rep
+            # text = top_map_value.color + top_map_value.rep
 
         # If map_value is none, clear this point
         elif map_value is None:
-            self.map.get((x, y), {}).pop(z, None)
-            text = ' '
+            target_map.get((x, y), {}).pop(z, None)
+            # text = ' '
 
         # finally do the actual printing
-        self.base_print(x, y, text)
+        # self.base_print(x, y, text)
 
     def base_print(self, x, y, text):
         print("\033[%s;%sH%s" % (y, x, text))
@@ -238,7 +293,6 @@ class Game(object):
             for vine in self.vines:
                 vine.be()
 
-
             self.info_pane.refresh()
             self.player.inventory.show()
             # if there is player input, proccess it here
@@ -273,15 +327,17 @@ class Game(object):
         if not dialogue == previous_dialogue:
             for x in range(self.eastern_border):
                 for y in range(self.southern_border + 1, self.rows + 1):
-                    self.set_map_value(x, y, 5, None)
+                    # self.set_map_value(x, y, 5, None)
+                    self.base_print(x, y, ' ')
 
             self.dialogue_history.append(time_stamped_dialogue)
 
             for ind, line in enumerate(self.dialogue_history[-5:]):
-                dialogue_line = TextPrint()
-                dialogue_line.rep = line
-                self.set_map_value(
-                    1, self.southern_border + (1 + ind), 5, dialogue_line)
+                # dialogue_line = TextPrint()
+                # dialogue_line.rep = line
+                # self.set_map_value(
+                #     1, self.southern_border + (1 + ind), 5, dialogue_line)
+                self.base_print(1, self.southern_border + (1 + ind), line)
 
     def border_iter(self, rep):
         # South Border
@@ -341,22 +397,24 @@ class InfoPane(object):
         self.show_chars(base, 18)
 
     def show(self, text, display_height, x_offset=0):
-        text_print = TextPrint()
-        text_print.rep = text
         # clear existing text
         for col in range(self.western_border, self.game.columns - x_offset):
-            self.game.set_map_value(
-                col + x_offset, display_height, self.pos_z, None)
+            # self.game.set_map_value(
+            #     col + x_offset, display_height, self.pos_z, None)
+
+            self.game.base_print(col + x_offset, display_height, ' ')
 
         # honestly not positive what's happening here
-        self.game.map.get(
-            (self.western_border, display_height), {}
-        ).pop(self.pos_z, None)
+        # self.game.map.get(
+        #     (self.western_border, display_height), {}
+        # ).pop(self.pos_z, None)
 
         # write new text
-        self.game.set_map_value(
-            self.western_border + x_offset,
-            display_height, self.pos_z, text_print)
+
+        self.game.base_print(self.western_border + x_offset, display_height, text)
+        # self.game.set_map_value(
+        #     self.western_border + x_offset,
+        #     display_height, self.pos_z, text_print)
 
     def show_items(self, base, off_set):
         if self.game.player.items:

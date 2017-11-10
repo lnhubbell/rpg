@@ -12,7 +12,7 @@ from utils import all_names, getch
 class Creature(object):
     VALID_MOVES = {'a', 'w', 's', 'd'}
 
-    def __init__(self, game):
+    def __init__(self, game, my_map=None):
         self.obstacle = {
             'w': False,
             'wd': False,
@@ -44,18 +44,23 @@ class Creature(object):
         self.prev_pos_y = None
         self.prev_pos_z = None
         self.prev_direction = None
+        self.prev_map = None
         self.health = 10
         self.name = sample(all_names, 1)[0]
         self.under_attack = False
         self.dead = False
+        self.my_map = my_map or game.map
 
-
-    def print_char(self):
-        self.game.set_map_value(self.pos_x, self.pos_y, self.pos_z, None)
+    def set_map_value(self):
+        self.game.set_map_value(self.pos_x, self.pos_y, self.pos_z, None, self.my_map)
         if not self.dead:
-            self.game.set_map_value(self.pos_x, self.pos_y, self.pos_z, self)
+            self.game.set_map_value(self.pos_x, self.pos_y, self.pos_z, self, self.my_map)
         else:
             self.game.print_intersection(self.pos_x, self.pos_y)
+
+    def print_char(self):
+        self.set_map_value()
+        self.game.print_intersection(self.pos_x, self.pos_y)
 
     def show_hit(self):
         main_color = self.color
@@ -71,14 +76,16 @@ class Creature(object):
         y = self.prev_pos_y
         z = self.prev_pos_z
 
+        this_map = self.prev_map or self.my_map
+        self.prev_map = None
         # if the thing in your previous space is you
-        if self.game.map.get((x, y), {}).get(z, None) is self:
+        if this_map.get((x, y), {}).get(z, None) is self:
             # then delete your old self
-            self.game.set_map_value(x, y, z, None)
+            self.game.set_map_value(x, y, z, None, this_map)
 
         # otherwise, print the top thing where you used to be
 
-        self.game.print_intersection(x, y)
+        self.game.print_intersection(x, y, target_map=this_map)
 
     def set_prev(self):
         self.prev_pos_x = self.pos_x
@@ -142,24 +149,32 @@ class Creature(object):
             new_x = 2
             map_x, map_y = self.game.current_map
             self.game.get_map(map_x + 1, map_y)
+            self.prev_map = self.my_map
+            self.my_map = self.game.map
 
         # Western Border
         elif new_x == 1:
             new_x = self.game.eastern_border - 1
             map_x, map_y = self.game.current_map
             self.game.get_map(map_x - 1, map_y)
+            self.prev_map = self.my_map
+            self.my_map = self.game.map
 
         # Southern Border
         elif new_y == self.game.southern_border:
             new_y = 2
             map_x, map_y = self.game.current_map
             self.game.get_map(map_x, map_y + 1)
+            self.prev_map = self.my_map
+            self.my_map = self.game.map
 
         # Northern Border
         elif new_y == 1:
             new_y = self.game.southern_border - 1
             map_x, map_y = self.game.current_map
             self.game.get_map(map_x, map_y - 1)
+            self.prev_map = self.my_map
+            self.my_map = self.game.map
 
         self.obstacle[self.direction] = (
             self.check_obstacle(new_x, new_y, self.pos_z)
@@ -444,7 +459,7 @@ class Player(Creature):
             if isinstance(item, Item):
                 self.items.append(item)
                 item.player = self
-                self.game.set_map_value(item.pos_x, item.pos_y, item.pos_z, None)
+                self.game.set_map_value(item.pos_x, item.pos_y, item.pos_z, None, self.my_map)
                 self.game.base_print_dialogue('Picked up %s.' % item.name)
 
     def punch(self):

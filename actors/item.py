@@ -2,8 +2,9 @@ from colorama import Fore
 
 
 class Item(object):
-    def __init__(self, name, game, color='', rep='i'):
+    def __init__(self, name, game, color='', rep='i', my_map=None):
         self.game = game
+        self.my_map = my_map or game.map
         self.pos_x, self.pos_y = self.game.rand_x_y_pos()
         self.pos_z = 10
         self.color = color
@@ -21,7 +22,7 @@ class Item(object):
         pass
 
     def print_char(self):
-        self.game.set_map_value(self.pos_x, self.pos_y, self.pos_z, self)
+        self.game.set_map_value(self.pos_x, self.pos_y, self.pos_z, self, self.my_map)
 
 
 class Wood(Item):
